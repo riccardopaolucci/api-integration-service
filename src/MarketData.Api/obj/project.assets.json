@@ -482,19 +482,19 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\Riccardo\\.nuget\\packages\\": {}
+    "/Users/riccardo/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Riccardo\\Job\\Upskill\\api-integration-service\\src\\MarketData.Api\\MarketData.Api.csproj",
+      "projectUniqueName": "/Users/riccardo/api-integration-service/src/MarketData.Api/MarketData.Api.csproj",
       "projectName": "MarketData.Api",
-      "projectPath": "C:\\Users\\Riccardo\\Job\\Upskill\\api-integration-service\\src\\MarketData.Api\\MarketData.Api.csproj",
-      "packagesPath": "C:\\Users\\Riccardo\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Riccardo\\Job\\Upskill\\api-integration-service\\src\\MarketData.Api\\obj\\",
+      "projectPath": "/Users/riccardo/api-integration-service/src/MarketData.Api/MarketData.Api.csproj",
+      "packagesPath": "/Users/riccardo/.nuget/packages/",
+      "outputPath": "/Users/riccardo/api-integration-service/src/MarketData.Api/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "C:\\Users\\Riccardo\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        "/Users/riccardo/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net8.0"
@@ -551,7 +551,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.416/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
