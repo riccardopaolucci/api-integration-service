@@ -1,5 +1,8 @@
 using MarketData.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
+using MarketData.Api.Repositories;
+using MarketData.Api.Services;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +20,8 @@ builder.Services.AddDbContext<MarketDataDbContext>(options =>
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddScoped<IQuoteRepository, QuoteRepository>();
+builder.Services.AddScoped<IQuoteService, QuoteService>();
 
 var app = builder.Build();
 
