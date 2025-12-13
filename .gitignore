@@ -46,6 +46,10 @@ Generated\ Files/
 # MSTest test Results
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
 
 # NUnit
 *.VisualState.xml
@@ -64,6 +68,9 @@ BenchmarkDotNet.Artifacts/
 project.lock.json
 project.fragment.lock.json
 artifacts/
+bin/
+obj/
+out/
 
 # Tye
 .tye/
@@ -75,6 +82,11 @@ ScaffoldingReadMe.txt
 StyleCopReport.xml
 
 # Files built by Visual Studio
+.vs/
+*.user
+*.suo
+*.cache
+*.log
 *_i.c
 *_p.c
 *_h.h
@@ -199,6 +211,9 @@ publish/
 PublishScripts/
 
 # NuGet Packages
+project.assets.json
+project.nuget.cache
+*.dgspec.json
 *.nupkg
 # NuGet Symbol Packages
 *.snupkg
@@ -431,6 +446,9 @@ test-results/
 .DS_Store
 .AppleDouble
 .LSOverride
+.DS_Store
+Thumbs.db
+
 
 # Icon must end with two \r
 Icon
@@ -482,3 +500,8 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Environment
+appsettings.Development.json
+appsettings.Local.json
+.env
