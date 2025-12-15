@@ -8,6 +8,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using MarketData.Api.Middleware;
+using MarketData.Api.Common.Validation;
 
 
 
@@ -18,7 +19,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Services
 // --------------------
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<ValidationFilter>();
+});
+
 
 builder.Services.AddDbContext<MarketDataDbContext>(options =>
     options.UseNpgsql(
