@@ -2,8 +2,11 @@ using System.IdentityModel.Tokens.Jwt;
 using MarketData.Api.Domain.DTOs;
 using MarketData.Api.Domain.Options;
 using MarketData.Api.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
+using MarketData.Api.Common.Errors;
+
 
 namespace MarketData.Api.UnitTests.Services;
 
@@ -13,8 +16,8 @@ public class AuthServiceTests
     public async Task LoginAsync_ReturnsToken_WhenCredentialsValid()
     {
         // Arrange
-        var options = CreateAuthOptions();
-        var sut = CreateSut(options);
+        var settings = CreateAuthSettings();
+        var sut = CreateSut(settings);
 
         var request = new LoginRequest
         {
@@ -50,8 +53,8 @@ public class AuthServiceTests
     public async Task LoginAsync_Throws_WhenCredentialsInvalid()
     {
         // Arrange
-        var options = CreateAuthOptions();
-        var sut = CreateSut(options);
+        var settings = CreateAuthSettings();
+        var sut = CreateSut(settings);
 
         var request = new LoginRequest
         {
@@ -68,8 +71,8 @@ public class AuthServiceTests
     public async Task LoginAsync_Throws_WhenRequestInvalid()
     {
         // Arrange
-        var options = CreateAuthOptions();
-        var sut = CreateSut(options);
+        var settings = CreateAuthSettings();
+        var sut = CreateSut(settings);
 
         var request = new LoginRequest
         {
@@ -85,15 +88,15 @@ public class AuthServiceTests
     // Test helpers
     // -----------------------
 
-    private static IAuthService CreateSut(AuthOptions options)
+    private static IAuthService CreateSut(AuthSettings settings)
     {
-        var opts = Options.Create(options);
-        return new AuthService(opts);
+        var opts = Options.Create(settings);
+        return new AuthService(opts, NullLogger<AuthService>.Instance);
     }
 
-    private static AuthOptions CreateAuthOptions()
+    private static AuthSettings CreateAuthSettings()
     {
-        return new AuthOptions
+        return new AuthSettings
         {
             Issuer = "MarketData.Api",
             Audience = "MarketData.Clients",

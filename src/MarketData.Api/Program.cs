@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using MarketData.Api.Repositories;
 using MarketData.Api.Services;
 using System.Reflection;
+using MarketData.Api.Domain.Options;
 
 
 
@@ -23,6 +24,8 @@ builder.Services.AddDbContext<MarketDataDbContext>(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddScoped<IQuoteRepository, QuoteRepository>();
 builder.Services.AddScoped<IQuoteService, QuoteService>();
+builder.Services.Configure<AuthSettings>(builder.Configuration.GetSection("Auth"));
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 builder.Services.AddSwaggerGen(options =>
 {
