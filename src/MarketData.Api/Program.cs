@@ -7,6 +7,8 @@ using MarketData.Api.Domain.Options;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using MarketData.Api.Middleware;
+
 
 
 
@@ -65,6 +67,8 @@ var app = builder.Build();
 // --------------------
 // Middleware
 // --------------------
+
+app.UseExceptionHandling();
 
 if (app.Environment.IsDevelopment())
 {
