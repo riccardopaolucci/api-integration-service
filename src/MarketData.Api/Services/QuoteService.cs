@@ -1,5 +1,10 @@
+using MarketData.Api.Common.Errors;
 using MarketData.Api.Domain.DTOs;
+using MarketData.Api.Domain.Entities;
+using MarketData.Api.Domain.Options;
+using MarketData.Api.Infrastructure.ExternalMarket;
 using MarketData.Api.Repositories;
+using Microsoft.Extensions.Options;
 
 namespace MarketData.Api.Services;
 
@@ -9,16 +14,23 @@ namespace MarketData.Api.Services;
 public class QuoteService : IQuoteService
 {
     private readonly IQuoteRepository _quoteRepository;
-
-    // Simple TTL for "fresh" cache. Adjust later (or move to config).
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
+    private readonly IMarketDataClient _marketDataClient;
+    private readonly CacheSettings _cacheSettings;
+    private readonly ILogger<QuoteService> _logger;
 
     /// <summary>
     /// Creates a new <see cref="QuoteService"/>.
     /// </summary>
-    public QuoteService(IQuoteRepository quoteRepository)
+    public QuoteService(
+        IQuoteRepository quoteRepository,
+        IMarketDataClient marketDataClient,
+        IOptions<CacheSettings> cacheOptions,
+        ILogger<QuoteService> logger)
     {
         _quoteRepository = quoteRepository;
+        _marketDataClient = marketDataClient;
+        _cacheSettings = cacheOptions.Value;
+        _logger = logger;
     }
 
     /// <summary>
@@ -35,39 +47,52 @@ public class QuoteService : IQuoteService
 
         var cached = await _quoteRepository.GetLatestBySymbolAsync(normalizedSymbol);
 
-        if (cached is not null && !forceRefresh)
+        if (!forceRefresh && cached is not null && !IsStale(cached))
         {
-            var age = DateTime.UtcNow - cached.LastUpdatedUtc;
-
-            if (age <= CacheTtl)
-            {
-                return new QuoteResponseDto
-                {
-                    Id = cached.Id,
-                    Symbol = cached.Symbol,
-                    Price = cached.Price,
-                    Currency = cached.Currency,
-                    LastUpdatedUtc = cached.LastUpdatedUtc,
-                    Source = cached.Source
-                };
-            }
+            return ToDto(cached, source: "cache");
         }
 
-        // External fetch not implemented yet.
-        // For now: if we have a cached value (even if stale), return it.
-        if (cached is not null)
+        // If missing OR stale OR forceRefresh => external fetch
+        try
         {
-            return new QuoteResponseDto
-            {
-                Id = cached.Id,
-                Symbol = cached.Symbol,
-                Price = cached.Price,
-                Currency = cached.Currency,
-                LastUpdatedUtc = cached.LastUpdatedUtc,
-                Source = cached.Source
-            };
-        }
+            var latest = await _marketDataClient.GetLatestQuoteAsync(normalizedSymbol);
 
-        throw new KeyNotFoundException($"No quote found for symbol '{normalizedSymbol}'.");
+            // Normalize symbol to keep DB consistent
+            latest.Symbol = normalizedSymbol;
+
+            await _quoteRepository.UpsertAsync(latest);
+
+            return ToDto(latest, source: "external");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "External market data provider failed for symbol {Symbol}", normalizedSymbol);
+
+            throw new ApiException(
+                errorCode: ErrorCodes.ExternalServiceFailure,
+                statusCode: 503,
+                message: "External market data provider unavailable.",
+                details: ex.Message);
+        }
+    }
+
+    private bool IsStale(SymbolQuote quote)
+    {
+        var ageSeconds = (DateTime.UtcNow - quote.LastUpdatedUtc).TotalSeconds;
+        return ageSeconds > _cacheSettings.StaleAfterSeconds;
+    }
+
+    private static QuoteResponseDto ToDto(SymbolQuote quote, string source)
+    {
+        return new QuoteResponseDto
+        {
+            Id = quote.Id,
+            Symbol = quote.Symbol,
+            Price = quote.Price,
+            Currency = quote.Currency,
+            LastUpdatedUtc = quote.LastUpdatedUtc,
+            Source = source
+        };
     }
 }
+

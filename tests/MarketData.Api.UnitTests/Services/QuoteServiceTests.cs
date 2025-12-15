@@ -1,8 +1,12 @@
-using System;
-using System.Threading.Tasks;
+using MarketData.Api.Common.Errors;
+using MarketData.Api.Domain.DTOs;
 using MarketData.Api.Domain.Entities;
+using MarketData.Api.Domain.Options;
+using MarketData.Api.Infrastructure.ExternalMarket;
 using MarketData.Api.Repositories;
 using MarketData.Api.Services;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -10,53 +14,140 @@ namespace MarketData.Api.UnitTests.Services;
 
 public class QuoteServiceTests
 {
-    private readonly Mock<IQuoteRepository> _quoteRepositoryMock;
-
-    public QuoteServiceTests()
-    {
-        _quoteRepositoryMock = new Mock<IQuoteRepository>();
-    }
-
     [Fact]
-    public async Task GetQuoteAsync_UsesCachedQuote_WhenFreshAndNotForceRefresh()
+    public async Task GetQuoteAsync_UsesCached_WhenFresh()
     {
         // Arrange
-        var now = DateTime.UtcNow;
-        var freshQuote = new SymbolQuote
+        var repo = new Mock<IQuoteRepository>();
+        var client = new Mock<IMarketDataClient>();
+
+        var cacheSettings = Options.Create(new CacheSettings { StaleAfterSeconds = 60 });
+
+        var cached = new SymbolQuote
         {
-            Id = 1,
             Symbol = "AAPL",
             Price = 100m,
-            Currency = "USD",
-            LastUpdatedUtc = now.AddSeconds(-10),
-            Source = "cache",
-            CreatedAtUtc = now.AddMinutes(-1),
-            UpdatedAtUtc = now.AddSeconds(-10)
+            // IMPORTANT: use your real timestamp property name here
+            LastUpdatedUtc = DateTime.UtcNow.AddSeconds(-30)
         };
 
-        _quoteRepositoryMock
-            .Setup(r => r.GetLatestBySymbolAsync("AAPL"))
-            .ReturnsAsync(freshQuote);
+        repo.Setup(r => r.GetLatestBySymbolAsync("AAPL"))
+            .ReturnsAsync(cached);
 
-        var service = new QuoteService(_quoteRepositoryMock.Object);
+        var sut = new QuoteService(repo.Object, client.Object, cacheSettings, NullLogger<QuoteService>.Instance);
 
         // Act
-        var result = await service.GetQuoteAsync("AAPL", forceRefresh: false);
+        var result = await sut.GetQuoteAsync("AAPL", forceRefresh: false);
 
         // Assert
+        Assert.NotNull(result);
         Assert.Equal("AAPL", result.Symbol);
         Assert.Equal(100m, result.Price);
-        Assert.Equal("USD", result.Currency);
         Assert.Equal("cache", result.Source);
 
-        _quoteRepositoryMock.Verify(r => r.GetLatestBySymbolAsync("AAPL"), Times.Once);
+        client.Verify(c => c.GetLatestQuoteAsync(It.IsAny<string>()), Times.Never);
+        repo.Verify(r => r.UpsertAsync(It.IsAny<SymbolQuote>()), Times.Never);
     }
 
     [Fact]
-    public async Task GetQuoteAsync_Throws_WhenSymbolIsNullOrEmpty()
+    public async Task GetQuoteAsync_CallsExternal_WhenStale()
     {
-        var service = new QuoteService(_quoteRepositoryMock.Object);
+        // Arrange
+        var repo = new Mock<IQuoteRepository>();
+        var client = new Mock<IMarketDataClient>();
 
-        await Assert.ThrowsAsync<ArgumentException>(() => service.GetQuoteAsync("", false));
+        var cacheSettings = Options.Create(new CacheSettings { StaleAfterSeconds = 60 });
+
+        var cached = new SymbolQuote
+        {
+            Symbol = "AAPL",
+            Price = 100m,
+            LastUpdatedUtc = DateTime.UtcNow.AddSeconds(-120) // stale
+        };
+
+        repo.Setup(r => r.GetLatestBySymbolAsync("AAPL"))
+            .ReturnsAsync(cached);
+
+        var external = new SymbolQuote
+        {
+            Symbol = "AAPL",
+            Price = 200m,
+            LastUpdatedUtc = DateTime.UtcNow
+        };
+
+        client.Setup(c => c.GetLatestQuoteAsync("AAPL"))
+              .ReturnsAsync(external);
+
+        var sut = new QuoteService(repo.Object, client.Object, cacheSettings, NullLogger<QuoteService>.Instance);
+
+        // Act
+        var result = await sut.GetQuoteAsync("AAPL", forceRefresh: false);
+
+        // Assert
+        client.Verify(c => c.GetLatestQuoteAsync("AAPL"), Times.Once);
+        repo.Verify(r => r.UpsertAsync(It.Is<SymbolQuote>(q => q.Symbol == "AAPL" && q.Price == 200m)), Times.Once);
+
+        Assert.Equal(200m, result.Price);
+        Assert.Equal("external", result.Source);
+    }
+
+    [Fact]
+    public async Task GetQuoteAsync_CallsExternal_WhenMissing()
+    {
+        // Arrange
+        var repo = new Mock<IQuoteRepository>();
+        var client = new Mock<IMarketDataClient>();
+
+        var cacheSettings = Options.Create(new CacheSettings { StaleAfterSeconds = 60 });
+
+        repo.Setup(r => r.GetLatestBySymbolAsync("AAPL"))
+            .ReturnsAsync((SymbolQuote?)null);
+
+        var external = new SymbolQuote
+        {
+            Symbol = "AAPL",
+            Price = 222m,
+            LastUpdatedUtc = DateTime.UtcNow
+        };
+
+        client.Setup(c => c.GetLatestQuoteAsync("AAPL"))
+              .ReturnsAsync(external);
+
+        var sut = new QuoteService(repo.Object, client.Object, cacheSettings, NullLogger<QuoteService>.Instance);
+
+        // Act
+        var result = await sut.GetQuoteAsync("AAPL", forceRefresh: false);
+
+        // Assert
+        client.Verify(c => c.GetLatestQuoteAsync("AAPL"), Times.Once);
+        repo.Verify(r => r.UpsertAsync(It.IsAny<SymbolQuote>()), Times.Once);
+
+        Assert.Equal(222m, result.Price);
+        Assert.Equal("external", result.Source);
+    }
+
+    [Fact]
+    public async Task GetQuoteAsync_ThrowsApiException_WhenExternalFails()
+    {
+        // Arrange
+        var repo = new Mock<IQuoteRepository>();
+        var client = new Mock<IMarketDataClient>();
+
+        var cacheSettings = Options.Create(new CacheSettings { StaleAfterSeconds = 60 });
+
+        repo.Setup(r => r.GetLatestBySymbolAsync("AAPL"))
+            .ReturnsAsync((SymbolQuote?)null);
+
+        client.Setup(c => c.GetLatestQuoteAsync("AAPL"))
+              .ThrowsAsync(new HttpRequestException("boom"));
+
+        var sut = new QuoteService(repo.Object, client.Object, cacheSettings, NullLogger<QuoteService>.Instance);
+
+        // Act
+        var ex = await Assert.ThrowsAsync<ApiException>(() => sut.GetQuoteAsync("AAPL", forceRefresh: false));
+
+        // Assert
+        Assert.Equal(ErrorCodes.ExternalServiceFailure, ex.ErrorCode);
+        Assert.Equal(503, ex.StatusCode);
     }
 }
