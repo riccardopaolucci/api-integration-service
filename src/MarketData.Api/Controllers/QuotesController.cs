@@ -1,6 +1,7 @@
 using MarketData.Api.Domain.DTOs;
 using MarketData.Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace MarketData.Api.Controllers;
 
@@ -9,6 +10,7 @@ namespace MarketData.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("quotes")]
+[Authorize]
 public class QuotesController : ControllerBase
 {
     private readonly IQuoteService _quoteService;
