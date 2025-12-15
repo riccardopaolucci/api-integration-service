@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using MarketData.Api.Middleware;
 using MarketData.Api.Common.Validation;
+using MarketData.Api.Infrastructure.ExternalMarket;
 
 
 
@@ -35,7 +36,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddScoped<IQuoteRepository, QuoteRepository>();
 builder.Services.AddScoped<IQuoteService, QuoteService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
-
+builder.Services.AddScoped<IMarketDataClient, FakeMarketDataClient>();
 builder.Services.Configure<CacheSettings>(builder.Configuration.GetSection("Cache"));
 
 builder.Services.Configure<AuthSettings>(builder.Configuration.GetSection("Auth"));
