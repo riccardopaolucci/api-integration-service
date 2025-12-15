@@ -2,6 +2,8 @@ using MarketData.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
 using MarketData.Api.Repositories;
 using MarketData.Api.Services;
+using System.Reflection;
+
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,9 +21,16 @@ builder.Services.AddDbContext<MarketDataDbContext>(options =>
 );
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IQuoteRepository, QuoteRepository>();
 builder.Services.AddScoped<IQuoteService, QuoteService>();
+
+builder.Services.AddSwaggerGen(options =>
+{
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    options.IncludeXmlComments(xmlPath);
+});
+
 
 var app = builder.Build();
 
