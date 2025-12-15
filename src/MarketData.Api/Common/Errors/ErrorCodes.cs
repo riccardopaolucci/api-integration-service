@@ -1,12 +1,13 @@
 namespace MarketData.Api.Common.Errors;
 
 /// <summary>
-/// Known error codes returned by the API.
+/// Standard error codes returned by the API.
 /// </summary>
-public static class ErrorCodes
+public enum ErrorCodes
 {
-    public const string Unauthorized = "Unauthorized";
-    public const string Validation = "Validation";
-    public const string NotFound = "NotFound";
-    public const string Unexpected = "Unexpected";
+    ValidationError,
+    Unauthorized,
+    NotFound,
+    ExternalServiceFailure,
+    Unknown
 }

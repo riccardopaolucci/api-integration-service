@@ -51,7 +51,8 @@ public class AuthService : IAuthService
         if (!valid)
         {
             _logger.LogWarning("Invalid login attempt for username '{Username}'.", request.Username);
-            throw new ApiException(ErrorCodes.Unauthorized, "Invalid username or password.");
+            throw ApiException.Unauthorized("Invalid username or password.");
+
         }
 
         var nowUtc = DateTime.UtcNow;
