@@ -36,6 +36,8 @@ builder.Services.AddScoped<IQuoteRepository, QuoteRepository>();
 builder.Services.AddScoped<IQuoteService, QuoteService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
+builder.Services.Configure<CacheSettings>(builder.Configuration.GetSection("Cache"));
+
 builder.Services.Configure<AuthSettings>(builder.Configuration.GetSection("Auth"));
 
 // Read auth settings for JWT validation
