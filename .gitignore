@@ -34,6 +34,8 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+**/bin/
+**/obj/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
@@ -505,3 +507,5 @@ $RECYCLE.BIN/
 appsettings.Development.json
 appsettings.Local.json
 .env
+.env.*
+
