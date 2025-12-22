@@ -1,14 +1,8 @@
-using MarketData.Api.Domain.Entities;
+using MarketData.Api.Domain.DTOs.External;
 
 namespace MarketData.Api.Infrastructure.ExternalMarket;
 
-/// <summary>
-/// Abstraction over an external market data provider.
-/// </summary>
 public interface IMarketDataClient
 {
-    /// <summary>
-    /// Fetches the latest quote for a symbol from the external provider.
-    /// </summary>
-    Task<SymbolQuote> GetLatestQuoteAsync(string symbol);
+    Task<MarketQuoteDto> GetLatestQuoteAsync(string symbol);
 }

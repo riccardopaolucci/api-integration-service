@@ -1,9 +1,11 @@
 using MarketData.Api.Common.Errors;
 using MarketData.Api.Domain.DTOs;
+using MarketData.Api.Domain.DTOs.External;
 using MarketData.Api.Domain.Entities;
 using MarketData.Api.Domain.Options;
 using MarketData.Api.Infrastructure.ExternalMarket;
 using MarketData.Api.Repositories;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
 namespace MarketData.Api.Services;
@@ -52,27 +54,41 @@ public class QuoteService : IQuoteService
             return ToDto(cached, source: "cache");
         }
 
-        // If missing OR stale OR forceRefresh => external fetch
         try
         {
-            var latest = await _marketDataClient.GetLatestQuoteAsync(normalizedSymbol);
+            MarketQuoteDto external = await _marketDataClient.GetLatestQuoteAsync(normalizedSymbol);
 
-            // Normalize symbol to keep DB consistent
-            latest.Symbol = normalizedSymbol;
+            // Map external DTO -> entity
+            var now = DateTime.UtcNow;
+
+            var latest = new SymbolQuote
+            {
+                Symbol = normalizedSymbol,
+                Price = external.Price,
+                Currency = external.Currency,
+                Source = "ExternalMarket",
+                LastUpdatedUtc = external.TimestampUtc,
+                CreatedAtUtc = cached?.CreatedAtUtc ?? now,
+                UpdatedAtUtc = now
+            };
 
             await _quoteRepository.UpsertAsync(latest);
 
             return ToDto(latest, source: "external");
         }
-        catch (HttpRequestException ex)
+        catch (ApiException)
+        {
+            // Preserve upstream error code/status/message from MarketDataClient
+            throw;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             _logger.LogWarning(ex, "External market data provider failed for symbol {Symbol}", normalizedSymbol);
 
             throw new ApiException(
-                errorCode: ErrorCodes.ExternalServiceFailure,
-                statusCode: 503,
-                message: "External market data provider unavailable.",
-                details: ex.Message);
+                ErrorCodes.ExternalServiceFailure,
+                StatusCodes.Status503ServiceUnavailable,
+                "External market data provider unavailable.");
         }
     }
 
@@ -95,4 +111,3 @@ public class QuoteService : IQuoteService
         };
     }
 }
-

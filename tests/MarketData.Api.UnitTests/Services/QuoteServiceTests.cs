@@ -1,10 +1,11 @@
 using MarketData.Api.Common.Errors;
-using MarketData.Api.Domain.DTOs;
+using MarketData.Api.Domain.DTOs.External;
 using MarketData.Api.Domain.Entities;
 using MarketData.Api.Domain.Options;
 using MarketData.Api.Infrastructure.ExternalMarket;
 using MarketData.Api.Repositories;
 using MarketData.Api.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -27,7 +28,7 @@ public class QuoteServiceTests
         {
             Symbol = "AAPL",
             Price = 100m,
-            // IMPORTANT: use your real timestamp property name here
+            Currency = "USD",
             LastUpdatedUtc = DateTime.UtcNow.AddSeconds(-30)
         };
 
@@ -62,17 +63,19 @@ public class QuoteServiceTests
         {
             Symbol = "AAPL",
             Price = 100m,
+            Currency = "USD",
             LastUpdatedUtc = DateTime.UtcNow.AddSeconds(-120) // stale
         };
 
         repo.Setup(r => r.GetLatestBySymbolAsync("AAPL"))
             .ReturnsAsync(cached);
 
-        var external = new SymbolQuote
+        var external = new MarketQuoteDto
         {
             Symbol = "AAPL",
             Price = 200m,
-            LastUpdatedUtc = DateTime.UtcNow
+            Currency = "USD",
+            TimestampUtc = DateTime.UtcNow
         };
 
         client.Setup(c => c.GetLatestQuoteAsync("AAPL"))
@@ -85,7 +88,11 @@ public class QuoteServiceTests
 
         // Assert
         client.Verify(c => c.GetLatestQuoteAsync("AAPL"), Times.Once);
-        repo.Verify(r => r.UpsertAsync(It.Is<SymbolQuote>(q => q.Symbol == "AAPL" && q.Price == 200m)), Times.Once);
+
+        repo.Verify(r => r.UpsertAsync(It.Is<SymbolQuote>(q =>
+            q.Symbol == "AAPL" &&
+            q.Price == 200m &&
+            q.Currency == "USD")), Times.Once);
 
         Assert.Equal(200m, result.Price);
         Assert.Equal("external", result.Source);
@@ -103,11 +110,12 @@ public class QuoteServiceTests
         repo.Setup(r => r.GetLatestBySymbolAsync("AAPL"))
             .ReturnsAsync((SymbolQuote?)null);
 
-        var external = new SymbolQuote
+        var external = new MarketQuoteDto
         {
             Symbol = "AAPL",
             Price = 222m,
-            LastUpdatedUtc = DateTime.UtcNow
+            Currency = "USD",
+            TimestampUtc = DateTime.UtcNow
         };
 
         client.Setup(c => c.GetLatestQuoteAsync("AAPL"))
@@ -148,6 +156,6 @@ public class QuoteServiceTests
 
         // Assert
         Assert.Equal(ErrorCodes.ExternalServiceFailure, ex.ErrorCode);
-        Assert.Equal(503, ex.StatusCode);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, ex.StatusCode);
     }
 }

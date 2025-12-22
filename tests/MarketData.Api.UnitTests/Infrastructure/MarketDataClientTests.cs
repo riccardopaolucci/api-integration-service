@@ -89,37 +89,37 @@ public class MarketDataClientTests
     }
 
     [Theory]
-    [InlineData("""{ "symbol": "AAPL" }""")] // missing fields
-    [InlineData("""{ not-json """ ] // malformed JSON
-    public async Task GetLatestQuoteAsync_ThrowsApiException_OnInvalidPayload(string payload)
-    {
-        // Arrange
-        var handler = new FakeHttpMessageHandler(_ =>
-            new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(payload, Encoding.UTF8, "application/json")
-            });
-
-        var httpClient = new HttpClient(handler)
+[InlineData("{ \"symbol\": \"AAPL\" }")] // missing fields
+[InlineData("{ not-json")]              // malformed JSON (still valid C# string)
+public async Task GetLatestQuoteAsync_ThrowsApiException_OnInvalidPayload(string payload)
+{
+    // Arrange
+    var handler = new FakeHttpMessageHandler(_ =>
+        new HttpResponseMessage(HttpStatusCode.OK)
         {
-            BaseAddress = new Uri("https://example.com/api/")
-        };
-
-        var options = Options.Create(new ExternalMarketSettings
-        {
-            BaseUrl = "https://example.com/api/",
-            ApiKey = "demo-or-dev-key",
-            TimeoutSeconds = 10
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
         });
 
-        var sut = new MarketDataClient(httpClient, options, NullLogger<MarketDataClient>.Instance);
+    var httpClient = new HttpClient(handler)
+    {
+        BaseAddress = new Uri("https://example.com/api/")
+    };
 
-        // Act
-        var ex = await Assert.ThrowsAsync<ApiException>(() => sut.GetLatestQuoteAsync("AAPL"));
+    var options = Options.Create(new ExternalMarketSettings
+    {
+        BaseUrl = "https://example.com/api/",
+        ApiKey = "demo-or-dev-key",
+        TimeoutSeconds = 10
+    });
 
-        // Assert
-        Assert.Equal(ErrorCodes.ExternalServiceFailure, ex.ErrorCode);
-        Assert.Equal(StatusCodes.Status503ServiceUnavailable, ex.StatusCode);
+    var sut = new MarketDataClient(httpClient, options, NullLogger<MarketDataClient>.Instance);
+
+    // Act
+    var ex = await Assert.ThrowsAsync<ApiException>(() => sut.GetLatestQuoteAsync("AAPL"));
+
+    // Assert
+    Assert.Equal(ErrorCodes.ExternalServiceFailure, ex.ErrorCode);
+    Assert.Equal(StatusCodes.Status503ServiceUnavailable, ex.StatusCode);
     }
 
     private sealed class FakeHttpMessageHandler : HttpMessageHandler
