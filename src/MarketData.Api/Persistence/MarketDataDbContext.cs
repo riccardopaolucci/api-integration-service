@@ -3,9 +3,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MarketData.Api.Persistence;
 
-/// <summary>
-/// Entity Framework Core DbContext for market data and cached quotes.
-/// </summary>
 public class MarketDataDbContext : DbContext
 {
     public MarketDataDbContext(DbContextOptions<MarketDataDbContext> options)
@@ -26,3 +23,4 @@ public class MarketDataDbContext : DbContext
             .HasIndex(q => q.LastUpdatedUtc);
     }
 }
+
