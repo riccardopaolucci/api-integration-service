@@ -1,6 +1,6 @@
-using MarketData.Api.Persistence;
+using MarketData.Api.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace MarketData.Api.Controllers;
 
@@ -11,27 +11,27 @@ namespace MarketData.Api.Controllers;
 [Route("healthz")]
 public class HealthController : ControllerBase
 {
-    private readonly MarketDataDbContext _dbContext;
+    private readonly IHealthService _healthService;
 
-    public HealthController(MarketDataDbContext dbContext)
+    public HealthController(IHealthService healthService)
     {
-        _dbContext = dbContext;
+        _healthService = healthService;
     }
 
     /// <summary>
-    /// Returns basic health information, including DB reachability.
+    /// Returns health information for database and external market provider.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> Get()
     {
-        try
+        var health = await _healthService.GetHealthAsync();
+
+        if (health.Status == "ok")
         {
-            await _dbContext.Database.CanConnectAsync();
-            return Ok(new { status = "ok", db = "reachable" });
+            return Ok(health);
         }
-        catch
-        {
-            return StatusCode(503, new { status = "degraded", db = "unreachable" });
-        }
+
+        return StatusCode(StatusCodes.Status503ServiceUnavailable, health);
     }
 }
+
