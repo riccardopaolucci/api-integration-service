@@ -10,6 +10,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{041D1973
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarketData.Api.UnitTests", "tests\MarketData.Api.UnitTests\MarketData.Api.UnitTests.csproj", "{B766FBD1-E3F3-403C-A308-F83B3811CF65}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarketData.Api.IntegrationTests", "tests\MarketData.Api.IntegrationTests\MarketData.Api.IntegrationTests.csproj", "{7977334E-BF21-45DB-9903-A996A552F02A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,6 +26,10 @@ Global
 		{B766FBD1-E3F3-403C-A308-F83B3811CF65}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B766FBD1-E3F3-403C-A308-F83B3811CF65}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B766FBD1-E3F3-403C-A308-F83B3811CF65}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7977334E-BF21-45DB-9903-A996A552F02A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7977334E-BF21-45DB-9903-A996A552F02A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7977334E-BF21-45DB-9903-A996A552F02A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7977334E-BF21-45DB-9903-A996A552F02A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -31,6 +37,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{E7D68EEF-9D07-584C-C3D1-D059AA9302B9} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{B766FBD1-E3F3-403C-A308-F83B3811CF65} = {041D1973-0B8A-407D-AC5A-5C144E7B7468}
+		{7977334E-BF21-45DB-9903-A996A552F02A} = {041D1973-0B8A-407D-AC5A-5C144E7B7468}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {FFED90F0-EEDA-40FC-B67A-18627ADC8922}
