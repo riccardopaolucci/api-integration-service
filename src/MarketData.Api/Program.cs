@@ -69,27 +69,36 @@ builder.Services.AddHttpClient<IMarketDataClient, MarketDataClient>((sp, client)
 // Read auth settings for JWT validation
 var authSettings = builder.Configuration
     .GetSection("Auth")
-    .Get<AuthSettings>()!;
+    .Get<AuthSettings>();
 
-var key = new SymmetricSecurityKey(
-    Encoding.UTF8.GetBytes(authSettings.SigningKey));
+if (authSettings is not null && !string.IsNullOrWhiteSpace(authSettings.SigningKey))
+{
+    var key = new SymmetricSecurityKey(
+        Encoding.UTF8.GetBytes(authSettings.SigningKey));
 
-builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
+    builder.Services
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = authSettings.Issuer,
-            ValidAudience = authSettings.Audience,
-            IssuerSigningKey = key
-        };
-    });
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = authSettings.Issuer,
+                ValidAudience = authSettings.Audience,
+                IssuerSigningKey = key
+            };
+        });
 
-builder.Services.AddAuthorization();
+    builder.Services.AddAuthorization();
+}
+else
+{
+    // Allow the app to boot in IntegrationTests even if Auth config isn't present.
+    builder.Services.AddAuthentication();
+    builder.Services.AddAuthorization();
+}
 
 builder.Services.AddSwaggerGen(options =>
 {
@@ -153,3 +162,4 @@ app.MapControllers();
 
 app.Run();
 
+public partial class Program { }
