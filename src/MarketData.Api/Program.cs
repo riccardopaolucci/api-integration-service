@@ -37,6 +37,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddScoped<IQuoteRepository, QuoteRepository>();
 builder.Services.AddScoped<IQuoteService, QuoteService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IHealthService, HealthService>();
 
 // Cache & Auth options
 builder.Services.Configure<CacheSettings>(

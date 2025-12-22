@@ -1,3 +1,5 @@
+using MarketData.Api.Domain.DTOs;
+
 namespace MarketData.Api.Services;
 
 /// <summary>

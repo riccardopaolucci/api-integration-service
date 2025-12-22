@@ -98,6 +98,31 @@ public sealed class MarketDataClient : IMarketDataClient
         }
     }
 
+    public async Task PingAsync(CancellationToken cancellationToken = default)
+    {
+        // Goal: confirm we can reach the host (DNS/TLS/connect) quickly.
+        // Accept ANY HTTP status code as "reachable".
+        using var request = new HttpRequestMessage(HttpMethod.Get, string.Empty);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(request, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "External market API ping failed.");
+            throw new ApiException(
+                ErrorCodes.ExternalServiceFailure,
+                StatusCodes.Status503ServiceUnavailable,
+                "External market data provider unreachable.");
+        }
+
+        // If we got a response at all, the service is reachable.
+        // Do NOT require 2xx because many APIs return 401/403 without an API key.
+        _ = response.StatusCode;
+    }
+
     private string BuildUrl(string symbol)
     {
         // Generic shape for now (tests don't care about the exact URL).
