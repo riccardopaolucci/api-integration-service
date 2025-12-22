@@ -10,6 +10,7 @@ using Microsoft.IdentityModel.Tokens;
 using MarketData.Api.Middleware;
 using MarketData.Api.Common.Validation;
 using MarketData.Api.Infrastructure.ExternalMarket;
+using Microsoft.Extensions.Options;
 
 
 
@@ -25,7 +26,6 @@ builder.Services.AddControllers(options =>
     options.Filters.Add<ValidationFilter>();
 });
 
-
 builder.Services.AddDbContext<MarketDataDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("Default")
@@ -33,17 +33,44 @@ builder.Services.AddDbContext<MarketDataDbContext>(options =>
 );
 
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddScoped<IQuoteRepository, QuoteRepository>();
 builder.Services.AddScoped<IQuoteService, QuoteService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IMarketDataClient, FakeMarketDataClient>();
-builder.Services.Configure<CacheSettings>(builder.Configuration.GetSection("Cache"));
 
-builder.Services.Configure<AuthSettings>(builder.Configuration.GetSection("Auth"));
+// Cache & Auth options
+builder.Services.Configure<CacheSettings>(
+    builder.Configuration.GetSection("Cache"));
+
+builder.Services.Configure<AuthSettings>(
+    builder.Configuration.GetSection("Auth"));
+
+// External market options
+builder.Services.Configure<ExternalMarketSettings>(
+    builder.Configuration.GetSection("ExternalMarket"));
+
+// Typed HttpClient for real external market client
+builder.Services.AddHttpClient<IMarketDataClient, MarketDataClient>((sp, client) =>
+{
+    var options = sp
+        .GetRequiredService<IOptions<ExternalMarketSettings>>()
+        .Value;
+
+    client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+});
+
+// --------------------
+// Auth (JWT)
+// --------------------
 
 // Read auth settings for JWT validation
-var authSettings = builder.Configuration.GetSection("Auth").Get<AuthSettings>()!;
-var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(authSettings.SigningKey));
+var authSettings = builder.Configuration
+    .GetSection("Auth")
+    .Get<AuthSettings>()!;
+
+var key = new SymmetricSecurityKey(
+    Encoding.UTF8.GetBytes(authSettings.SigningKey));
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -69,8 +96,8 @@ builder.Services.AddSwaggerGen(options =>
     options.IncludeXmlComments(xmlPath);
 });
 
-
 var app = builder.Build();
+
 
 // --------------------
 // Middleware
