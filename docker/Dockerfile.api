@@ -1,0 +1,31 @@
+# docker/Dockerfile.api
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy solution + csproj files first (better Docker layer caching)
+COPY ./api-integration-service.sln ./
+COPY ./src/MarketData.Api/MarketData.Api.csproj ./src/MarketData.Api/
+COPY ./tests/MarketData.Api.UnitTests/MarketData.Api.UnitTests.csproj ./tests/MarketData.Api.UnitTests/
+COPY ./tests/MarketData.Api.IntegrationTests/MarketData.Api.IntegrationTests.csproj ./tests/MarketData.Api.IntegrationTests/
+
+# Restore
+RUN dotnet restore ./api-integration-service.sln
+
+# Copy everything else
+COPY ./src/MarketData.Api/ ./src/MarketData.Api/
+COPY ./tests/MarketData.Api.UnitTests/ ./tests/MarketData.Api.UnitTests/
+COPY ./tests/MarketData.Api.IntegrationTests/ ./tests/MarketData.Api.IntegrationTests/
+
+# Publish API
+WORKDIR /src/src/MarketData.Api
+RUN dotnet publish -c Release -o /app/publish --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+COPY --from=build /app/publish ./
+
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "MarketData.Api.dll"]
