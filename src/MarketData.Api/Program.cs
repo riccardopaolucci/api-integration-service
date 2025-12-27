@@ -157,7 +157,8 @@ if (!app.Environment.IsDevelopment())
 
 app.MapGet("/swagger", () => Results.Redirect("/swagger/index.html", permanent: true));
 
-
+app.ApplyMigrations();
+await app.SeedAsync();
 
 app.UseAuthentication();
 app.UseAuthorization();

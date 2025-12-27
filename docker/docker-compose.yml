@@ -35,6 +35,7 @@ services:
       Auth__Issuer: "MarketData.Api"
       Auth__Audience: "MarketData.Clients"
       Auth__SigningKey: "change-this-dev-only-key"
+      Cache__StaleAfterSeconds: "3600"
     ports:
       - "8080:8080"
 
