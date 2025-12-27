@@ -1,11 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace MarketData.Api.Persistence;
 
 /// <summary>
-/// Helpers to apply migrations at application startup.
+/// Helpers to apply migrations and seed data at application startup.
 /// </summary>
 public static class DbMigrationExtensions
 {
@@ -13,6 +11,15 @@ public static class DbMigrationExtensions
     {
         using var scope = app.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<MarketDataDbContext>();
-        dbContext.Database.Migrate();
+
+        // InMemory provider doesn't support Migrate()
+        if (dbContext.Database.IsRelational())
+        {
+            dbContext.Database.Migrate();
+        }
+        else
+        {
+            dbContext.Database.EnsureCreated();
+        }
     }
 }
