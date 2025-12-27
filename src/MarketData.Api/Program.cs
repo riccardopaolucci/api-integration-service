@@ -155,6 +155,10 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+app.MapGet("/swagger", () => Results.Redirect("/swagger/index.html", permanent: true));
+
+
+
 app.UseAuthentication();
 app.UseAuthorization();
 

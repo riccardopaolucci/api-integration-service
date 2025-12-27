@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: marketdata-db
+    environment:
+      POSTGRES_DB: marketdata
+      POSTGRES_USER: marketuser
+      POSTGRES_PASSWORD: marketpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marketuser -d marketdata"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: marketdata-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ConnectionStrings__Default: "Host=db;Port=5432;Database=marketdata;Username=marketuser;Password=marketpass"
+      ExternalMarket__BaseUrl: "https://example.com/api"
+      ExternalMarket__ApiKey: "demo-key"
+      ExternalMarket__TimeoutSeconds: "10"
+      Auth__Issuer: "MarketData.Api"
+      Auth__Audience: "MarketData.Clients"
+      Auth__SigningKey: "change-this-dev-only-key"
+    ports:
+      - "8080:8080"
+
+volumes:
+  db_data:
