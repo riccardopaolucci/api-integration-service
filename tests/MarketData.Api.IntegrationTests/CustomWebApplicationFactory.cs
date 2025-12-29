@@ -1,6 +1,7 @@
 using MarketData.Api.Infrastructure.ExternalMarket;
 using MarketData.Api.IntegrationTests.Fakes;
 using MarketData.Api.Persistence;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -25,19 +26,32 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddDbContext<MarketDataDbContext>(options =>
                 options.UseInMemoryDatabase("MarketDataTestDb"));
 
+            // -----------------------------
+            // Swap external market client -> fake
+            // -----------------------------
+            services.RemoveAll<IMarketDataClient>();
+            services.AddScoped<IMarketDataClient, FakeMarketDataClient>();
+
+            // -----------------------------
+            // Force auth to "Test" scheme
+            // -----------------------------
+            services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = TestAuthHandler.SchemeName;
+                    options.DefaultChallengeScheme = TestAuthHandler.SchemeName;
+                })
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+                    TestAuthHandler.SchemeName,
+                    _ => { });
+
             // Ensure DB is created
             var sp = services.BuildServiceProvider();
             using var scope = sp.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<MarketDataDbContext>();
             db.Database.EnsureCreated();
-
-            // -----------------------------
-            // Swap external market client -> fake
-            // -----------------------------
-            services.RemoveAll<IMarketDataClient>();
-            services.AddSingleton<IMarketDataClient, FakeMarketDataClient>();
         });
     }
 }
+
 
 
