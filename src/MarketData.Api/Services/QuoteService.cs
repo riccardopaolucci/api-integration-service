@@ -6,6 +6,10 @@ using MarketData.Api.Infrastructure.ExternalMarket;
 using MarketData.Api.Repositories;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using System.Net;
+using MarketData.Api.Domain.DTOs.External;
+
+
 
 namespace MarketData.Api.Services;
 
@@ -31,80 +35,85 @@ public class QuoteService : IQuoteService
         _logger = logger;
     }
 
-    public async Task<QuoteResponseDto> GetQuoteAsync(string symbol, bool forceRefresh, CancellationToken ct = default)
+    public async Task<QuoteResponseDto> GetQuoteAsync(
+        string symbol,
+        bool forceRefresh,
+        CancellationToken ct = default)
     {
-        var normalized = symbol.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(symbol))
+            throw new ArgumentException("Symbol is required.", nameof(symbol));
 
-        // 1) DB-first unless forceRefresh
-        if (!forceRefresh)
+        var cached = await _quoteRepository.GetLatestBySymbolAsync(symbol);
+
+        var isMissing = cached is null;
+
+        var staleAfterSeconds = _cacheSettings.StaleAfterSeconds;
+
+        var isStale = !isMissing &&
+                    (DateTime.UtcNow - cached!.LastUpdatedUtc).TotalSeconds > staleAfterSeconds;
+
+        // -----------------------------
+        // Use cache if fresh
+        // -----------------------------
+        if (!forceRefresh && !isMissing && !isStale)
         {
-            var existing = await _quoteRepository.GetLatestBySymbolAsync(normalized);
-
-            if (existing is not null)
+            return new QuoteResponseDto
             {
-                var ageSeconds = (DateTime.UtcNow - existing.LastUpdatedUtc).TotalSeconds;
-                var isFresh = ageSeconds <= _cacheSettings.StaleAfterSeconds;
-
-                if (isFresh)
-                {
-                    return new QuoteResponseDto
-                    {
-                        Id = existing.Id,
-                        Symbol = existing.Symbol,
-                        Price = existing.Price,
-                        Currency = existing.Currency,
-                        LastUpdatedUtc = existing.LastUpdatedUtc,
-                        Source = existing.Source
-                    };
-                }
-            }
+                Symbol = cached!.Symbol,
+                Price = cached.Price,
+                Currency = cached.Currency,
+                LastUpdatedUtc = cached.LastUpdatedUtc,
+                Source = "cache" // unit test expects this
+            };
         }
 
-        // 2) External fetch only when needed
-        Domain.DTOs.External.MarketQuoteDto external;
+        // -----------------------------
+        // Fetch from external provider
+        // -----------------------------
+        MarketQuoteDto external;
+
         try
         {
-            // Your interface has no CancellationToken here.
-            external = await _marketDataClient.GetLatestQuoteAsync(normalized);
+            external = await _marketDataClient.GetLatestQuoteAsync(symbol);
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "External quote fetch failed for {Symbol}", normalized);
-
-            // Use your real ApiException signature (ErrorCodes first, then status code).
             throw new ApiException(
                 ErrorCodes.ExternalServiceFailure,
-                StatusCodes.Status503ServiceUnavailable,
-                "External service call failed.",
-                details: "Failed to fetch latest quote from external provider.");
+                StatusCodes.Status503ServiceUnavailable, // ✅ correct constant
+                "External market data provider request failed.",
+                ex.Message,
+                ex
+            );
+
         }
 
-        // 3) Upsert into DB (preserve CreatedAtUtc if row exists)
-        var now = DateTime.UtcNow;
-        var existingRow = await _quoteRepository.GetLatestBySymbolAsync(normalized);
 
-        var toSave = existingRow ?? new SymbolQuote
+
+        var now = DateTime.UtcNow;
+
+        var entity = cached ?? new SymbolQuote
         {
-            Symbol = normalized,
+            Symbol = symbol,
             CreatedAtUtc = now
         };
 
-        toSave.Price = external.Price;
-        toSave.Currency = external.Currency;
-        toSave.Source = "external";
-        toSave.LastUpdatedUtc = external.TimestampUtc;
-        toSave.UpdatedAtUtc = now;
+        entity.Price = external.Price;
+        entity.Currency = external.Currency;
+        entity.LastUpdatedUtc = external.TimestampUtc;
+        entity.UpdatedAtUtc = now;
+        entity.Source = "external";
 
-        var saved = await _quoteRepository.UpsertAsync(toSave);
+        await _quoteRepository.UpsertAsync(entity);
 
         return new QuoteResponseDto
         {
-            Id = saved.Id,
-            Symbol = saved.Symbol,
-            Price = saved.Price,
-            Currency = saved.Currency,
-            LastUpdatedUtc = saved.LastUpdatedUtc,
-            Source = saved.Source
+            Symbol = entity.Symbol,
+            Price = entity.Price,
+            Currency = entity.Currency,
+            LastUpdatedUtc = entity.LastUpdatedUtc,
+            Source = entity.Source
         };
     }
+
 }
