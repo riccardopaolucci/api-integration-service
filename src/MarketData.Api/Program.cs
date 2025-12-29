@@ -27,6 +27,24 @@ builder.Services.AddControllers(options =>
     options.Filters.Add<ValidationFilter>();
 });
 
+// --------------------
+// CORS (Frontend)
+// --------------------
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>()
+    ?? new[] { "http://localhost:5173" };
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontendCors", policy =>
+    {
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 builder.Services.AddDbContext<MarketDataDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("Default")
@@ -143,6 +161,8 @@ var app = builder.Build();
 // --------------------
 
 app.UseExceptionHandling();
+
+app.UseCors("FrontendCors");
 
 if (app.Environment.IsDevelopment())
 {

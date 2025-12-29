@@ -509,3 +509,6 @@ appsettings.Local.json
 .env
 .env.*
 
+# Frontend env vars
+marketdata-frontend/.env*
+
