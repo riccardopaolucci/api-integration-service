@@ -9,6 +9,7 @@ namespace MarketData.Api.Controllers;
 /// Endpoints for retrieving market quotes by symbol or id.
 /// </summary>
 [ApiController]
+[AllowAnonymous]
 [Route("quotes")]
 [Authorize]
 public class QuotesController : ControllerBase
