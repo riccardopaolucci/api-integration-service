@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { AuthProvider } from "../context/AuthProvider";
-import { useAuth } from "../context/authContext";
+import { AuthProvider } from "../context/AuthContext";
+import { useAuth } from "../context/AuthContext";
 
 function TestConsumer() {
   const { state, setTokenForTest, logout } = useAuth();
