@@ -2,14 +2,11 @@ using MarketData.Api.Common.Errors;
 using MarketData.Api.Domain.DTOs;
 using MarketData.Api.Domain.Entities;
 using MarketData.Api.Domain.Options;
+using MarketData.Api.Domain.DTOs.External;
 using MarketData.Api.Infrastructure.ExternalMarket;
 using MarketData.Api.Repositories;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
-using System.Net;
-using MarketData.Api.Domain.DTOs.External;
-
-
 
 namespace MarketData.Api.Services;
 
@@ -46,11 +43,10 @@ public class QuoteService : IQuoteService
         var cached = await _quoteRepository.GetLatestBySymbolAsync(symbol);
 
         var isMissing = cached is null;
-
         var staleAfterSeconds = _cacheSettings.StaleAfterSeconds;
 
         var isStale = !isMissing &&
-                    (DateTime.UtcNow - cached!.LastUpdatedUtc).TotalSeconds > staleAfterSeconds;
+                      (DateTime.UtcNow - cached!.LastUpdatedUtc).TotalSeconds > staleAfterSeconds;
 
         // -----------------------------
         // Use cache if fresh
@@ -78,17 +74,55 @@ public class QuoteService : IQuoteService
         }
         catch (HttpRequestException ex)
         {
+            // If we have *any* cached value, fall back to it instead of failing the whole request.
+            // This is especially useful in Development when the external provider is a placeholder.
+            if (cached is not null)
+            {
+                _logger.LogWarning(ex,
+                    "External provider failed for {Symbol}. Falling back to cached quote from {LastUpdatedUtc}.",
+                    symbol, cached.LastUpdatedUtc);
+
+                return new QuoteResponseDto
+                {
+                    Symbol = cached.Symbol,
+                    Price = cached.Price,
+                    Currency = cached.Currency,
+                    LastUpdatedUtc = cached.LastUpdatedUtc,
+                    Source = cached.Source ?? "cache"
+                };
+            }
+
             throw new ApiException(
                 ErrorCodes.ExternalServiceFailure,
-                StatusCodes.Status503ServiceUnavailable, // ✅ correct constant
+                StatusCodes.Status503ServiceUnavailable,
                 "External market data provider request failed.",
                 ex.Message,
                 ex
             );
-
         }
+        catch (ApiException ex) when (ex.ErrorCode == ErrorCodes.ExternalServiceFailure)
+        {
+            // MarketDataClient can throw ApiException for non-success status codes (e.g. 404 from example.com).
+            // Fall back to cached if we have it; otherwise propagate as 503.
+            if (cached is not null)
+            {
+                _logger.LogWarning(ex,
+                    "External provider returned failure for {Symbol}. Falling back to cached quote from {LastUpdatedUtc}.",
+                    symbol, cached.LastUpdatedUtc);
 
+                return new QuoteResponseDto
+                {
+                    Symbol = cached.Symbol,
+                    Price = cached.Price,
+                    Currency = cached.Currency,
+                    LastUpdatedUtc = cached.LastUpdatedUtc,
+                    Source = cached.Source ?? "cache"
+                };
+            }
 
+            // Re-throw if there's nothing to fall back to
+            throw;
+        }
 
         var now = DateTime.UtcNow;
 
@@ -115,5 +149,4 @@ public class QuoteService : IQuoteService
             Source = entity.Source
         };
     }
-
 }

@@ -27,12 +27,17 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       ConnectionStrings__Default: "Host=db;Port=5432;Database=marketdata;Username=marketuser;Password=marketpass"
+
       ExternalMarket__BaseUrl: "https://example.com/api"
       ExternalMarket__ApiKey: "demo-key"
       ExternalMarket__TimeoutSeconds: "10"
+
       Auth__Issuer: "MarketData.Api"
       Auth__Audience: "MarketData.Clients"
-      Auth__SigningKey: "change-this-dev-only-key"
+      Auth__SigningKey: "dev-only-signing-key-32chars-min-CHANGE-ME!"
+      Auth__DemoUser__Username: "demo"
+      Auth__DemoUser__Password: "password123"
+
       Cache__StaleAfterSeconds: "3600"
     ports:
       - "8080:8080"
