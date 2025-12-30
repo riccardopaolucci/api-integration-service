@@ -100,3 +100,6 @@ The project includes both unit tests and integration tests.
 * Configuration is environment-based (`Development`, `Test`, Docker).
 * Integration tests mirror production wiring while remaining deterministic.
 * Docker setup reflects real-world deployment patterns (multi-stage build, health checks, auto-migrations).
+
+
+<!-- CI sanity check -->
