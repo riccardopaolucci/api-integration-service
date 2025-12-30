@@ -1,4 +1,3 @@
-
 # Market Data Cache Microservice (.NET 8)
 
 ![Backend CI](https://github.com/riccardopaolucci/api-integration-service/actions/workflows/backend-ci.yml/badge.svg)
@@ -18,6 +17,32 @@ The project is designed to demonstrate production-style backend patterns includi
 - PostgreSQL
 - Docker & Docker Compose
 - xUnit (unit + integration tests)
+
+---
+
+## CI / Quality
+
+This project uses GitHub Actions to enforce continuous integration and test-driven development practices.
+
+### Backend CI
+- Runs on every push and pull request to `main`.
+- Executes:
+  - `dotnet restore`
+  - `dotnet build` (Release)
+  - `dotnet test` (unit + integration tests)
+- Integration tests are fully deterministic:
+  - In-memory EF Core database
+  - Fake external market data client
+  - No dependency on local PostgreSQL or real HTTP calls
+
+### Frontend CI
+- Runs on frontend-related changes.
+- Executes:
+  - `npm test` (Vitest, non-interactive)
+  - `npm run build` (production bundle)
+
+All changes must keep tests green.  
+This mirrors real-world CI pipelines and TDD workflows used in production teams.
 
 ---
 
@@ -100,6 +125,3 @@ The project includes both unit tests and integration tests.
 * Configuration is environment-based (`Development`, `Test`, Docker).
 * Integration tests mirror production wiring while remaining deterministic.
 * Docker setup reflects real-world deployment patterns (multi-stage build, health checks, auto-migrations).
-
-
-<!-- CI sanity check -->
