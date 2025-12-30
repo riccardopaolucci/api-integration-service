@@ -1,6 +1,11 @@
 
 # Market Data Cache Microservice (.NET 8)
 
+![Backend CI](https://github.com/riccardopaolucci/api-integration-service/actions/workflows/backend-ci.yml/badge.svg)
+![Frontend CI](https://github.com/riccardopaolucci/api-integration-service/actions/workflows/frontend-ci.yml/badge.svg)
+
+## Overview
+
 A .NET 8 Web API that retrieves market data quotes by symbol, caches them in a PostgreSQL database, and exposes them via a REST API.
 The project is designed to demonstrate production-style backend patterns including persistence, caching rules, integration testing, and containerisation.
 
