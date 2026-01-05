@@ -63,16 +63,17 @@ builder.Services.Configure<ExternalMarketSettings>(builder.Configuration.GetSect
 // Typed HttpClient
 builder.Services.AddHttpClient<IMarketDataClient, MarketDataClient>((sp, client) =>
 {
-    var options = sp.GetRequiredService<IOptions<ExternalMarketSettings>>().Value;
+    var settings = sp.GetRequiredService<IOptions<ExternalMarketSettings>>().Value;
 
-    // Avoid throwing if BaseUrl is blank; client can still exist for tests/health
-    if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+    // Only set BaseAddress if BaseUrl is actually configured + valid.
+    if (Uri.TryCreate(settings.BaseUrl, UriKind.Absolute, out var baseUri))
     {
-        client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
+        client.BaseAddress = baseUri;
     }
 
-    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+    client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
 });
+
 
 // --------------------
 // Auth (JWT)
