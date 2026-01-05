@@ -512,4 +512,5 @@ appsettings.Local.json
 # Frontend env vars
 marketdata-frontend/.env*
 
-publish.zip
+# Build artifacts
+*.zip
