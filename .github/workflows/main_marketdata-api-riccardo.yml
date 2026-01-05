@@ -9,45 +9,57 @@ on:
       - main
   workflow_dispatch:
 
+# Prevent overlapping deploys (fixes SCM container restart / ZipDeploy races)
+concurrency:
+  group: marketdata-api-riccardo-deploy
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up .NET Core
+      - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.x'
+          dotnet-version: "8.0.x"
 
-      - name: Build with dotnet
-        run: dotnet build --configuration Release
+      - name: Restore
+        run: dotnet restore
 
-      - name: dotnet publish
-        run: dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp
+      - name: Build (Release)
+        run: dotnet build src/MarketData.Api/MarketData.Api.csproj --configuration Release --no-restore
+
+      - name: Publish (API only)
+        run: dotnet publish src/MarketData.Api/MarketData.Api.csproj -c Release -o ./publish --no-build
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
-          name: .net-app
-          path: ${{env.DOTNET_ROOT}}/myapp
+          name: api-publish
+          path: ./publish
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
 
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
-          name: .net-app
-      
+          name: api-publish
+          path: ./publish
+
+      - name: Wait for App Service / SCM to settle
+        run: sleep 30
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -56,10 +68,8 @@ jobs:
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6EA6466C24A64EE98D4350936AB3E89E }}
 
       - name: Deploy to Azure Web App
-        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'marketdata-api-riccardo'
-          slot-name: 'Production'
-          package: .
-          
+          app-name: "marketdata-api-riccardo"
+          slot-name: "Production"
+          package: ./publish
