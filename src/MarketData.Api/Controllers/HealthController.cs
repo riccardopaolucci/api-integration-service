@@ -5,10 +5,12 @@ using Microsoft.AspNetCore.Mvc;
 namespace MarketData.Api.Controllers;
 
 /// <summary>
-/// Health check endpoints for the API and its dependencies.
+/// Health check endpoints for the API.
+/// - /healthz = liveness (app is running) -> always 200
+/// - /readyz  = readiness (deps ready)    -> 200 or 503
 /// </summary>
 [ApiController]
-[Route("healthz")]
+[Route("")]
 public class HealthController : ControllerBase
 {
     private readonly IHealthService _healthService;
@@ -19,19 +21,31 @@ public class HealthController : ControllerBase
     }
 
     /// <summary>
-    /// Returns health information for database and external market provider.
+    /// Liveness probe: confirms the API process is running.
+    /// Always returns 200 OK (even if dependencies are degraded).
     /// </summary>
-    [HttpGet]
-    public async Task<IActionResult> Get()
+    [HttpGet("healthz")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Healthz()
+    {
+        var health = await _healthService.GetHealthAsync();
+        return Ok(health);
+    }
+
+    /// <summary>
+    /// Readiness probe: confirms dependencies (e.g., DB / external provider) are ready.
+    /// Returns 200 when healthy, otherwise 503.
+    /// </summary>
+    [HttpGet("readyz")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> Readyz()
     {
         var health = await _healthService.GetHealthAsync();
 
-        if (health.Status == "ok")
-        {
-            return Ok(health);
-        }
-
-        return StatusCode(StatusCodes.Status503ServiceUnavailable, health);
+        return health.Status == "ok"
+            ? Ok(health)
+            : StatusCode(StatusCodes.Status503ServiceUnavailable, health);
     }
 }
 
