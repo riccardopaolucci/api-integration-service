@@ -1,29 +1,27 @@
-using System.Reflection;
-using System.Text;
-using MarketData.Api.Common.Validation;
-using MarketData.Api.Domain.Options;
-using MarketData.Api.Infrastructure.ExternalMarket;
-using MarketData.Api.Middleware;
 using MarketData.Api.Persistence;
+using Microsoft.EntityFrameworkCore;
 using MarketData.Api.Repositories;
 using MarketData.Api.Services;
+using System.Reflection;
+using MarketData.Api.Domain.Options;
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using MarketData.Api.Middleware;
+using MarketData.Api.Common.Validation;
+using MarketData.Api.Infrastructure.ExternalMarket;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // --------------------
-// Controllers + Validation
+// Services
 // --------------------
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<ValidationFilter>();
 });
-
-builder.Services.AddEndpointsApiExplorer();
 
 // --------------------
 // CORS (Frontend)
@@ -44,23 +42,14 @@ builder.Services.AddCors(options =>
 });
 
 // --------------------
-// Database
+// DbContext
 // --------------------
-var connectionString = builder.Configuration.GetConnectionString("Default");
-
 builder.Services.AddDbContext<MarketDataDbContext>(options =>
-{
-    // If the connection string is missing, we still let the app boot so you can see a useful error/health response.
-    // Your API endpoints that require DB will fail until you set ConnectionStrings:Default in Azure.
-    if (!string.IsNullOrWhiteSpace(connectionString))
-    {
-        options.UseNpgsql(connectionString);
-    }
-});
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Default"))
+);
 
-// --------------------
-// App Services
-// --------------------
+builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddScoped<IQuoteRepository, QuoteRepository>();
 builder.Services.AddScoped<IQuoteService, QuoteService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -71,28 +60,24 @@ builder.Services.Configure<CacheSettings>(builder.Configuration.GetSection("Cach
 builder.Services.Configure<AuthSettings>(builder.Configuration.GetSection("Auth"));
 builder.Services.Configure<ExternalMarketSettings>(builder.Configuration.GetSection("ExternalMarket"));
 
-// --------------------
-// External Market HttpClient
-// --------------------
+// Typed HttpClient
 builder.Services.AddHttpClient<IMarketDataClient, MarketDataClient>((sp, client) =>
 {
     var options = sp.GetRequiredService<IOptions<ExternalMarketSettings>>().Value;
 
-    // Don’t crash startup if BaseUrl isn’t set yet (common during first Azure deploy).
-    if (Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var baseUri))
+    // Avoid throwing if BaseUrl is blank; client can still exist for tests/health
+    if (!string.IsNullOrWhiteSpace(options.BaseUrl))
     {
-        client.BaseAddress = baseUri;
+        client.BaseAddress = new Uri(options.BaseUrl, UriKind.Absolute);
     }
 
-    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds > 0 ? options.TimeoutSeconds : 10);
+    client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
 });
 
 // --------------------
 // Auth (JWT)
 // --------------------
-var authSettings = builder.Configuration
-    .GetSection("Auth")
-    .Get<AuthSettings>();
+var authSettings = builder.Configuration.GetSection("Auth").Get<AuthSettings>();
 
 if (authSettings is not null && !string.IsNullOrWhiteSpace(authSettings.SigningKey))
 {
@@ -117,7 +102,6 @@ if (authSettings is not null && !string.IsNullOrWhiteSpace(authSettings.SigningK
 }
 else
 {
-    // Allows the app to boot (e.g. IntegrationTests / first deploy before secrets are set)
     builder.Services.AddAuthentication();
     builder.Services.AddAuthorization();
 }
@@ -127,13 +111,9 @@ else
 // --------------------
 builder.Services.AddSwaggerGen(options =>
 {
-    // XML comments (safe if file exists)
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    if (File.Exists(xmlPath))
-    {
-        options.IncludeXmlComments(xmlPath);
-    }
+    options.IncludeXmlComments(xmlPath);
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
@@ -150,7 +130,11 @@ builder.Services.AddSwaggerGen(options =>
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
             },
             Array.Empty<string>()
         }
@@ -160,52 +144,37 @@ builder.Services.AddSwaggerGen(options =>
 var app = builder.Build();
 
 // --------------------
-// Middleware pipeline (order matters)
+// Middleware
 // --------------------
 app.UseExceptionHandling();
-
-app.UseRouting();
-
 app.UseCors("FrontendCors");
+
+// Swagger on anything except Tests 
+if (!app.Environment.IsEnvironment("Test"))
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+    app.MapGet("/swagger", () => Results.Redirect("/swagger/index.html", permanent: true));
+}
+
+app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Swagger: enable in ALL envs (handy for Azure testing).
-// If you want it only in Dev later, wrap in app.Environment.IsDevelopment().
-app.UseSwagger();
-app.UseSwaggerUI();
-app.MapGet("/", () => Results.Redirect("/swagger", permanent: false));
-app.MapGet("/swagger", () => Results.Redirect("/swagger/index.html", permanent: false));
-
-// Health endpoint (public)
-app.MapGet("/healthz", async (IHealthService healthService) =>
-{
-    // Whatever your HealthService returns, just pass it through.
-    // If your IHealthService returns a DTO, this will JSON it.
-    var result = await healthService.GetHealthAsync();
-    return Results.Ok(result);
-}).AllowAnonymous();
-
-// Controllers
 app.MapControllers();
 
-// DB migrations + seed (don’t take down the whole app if config isn’t ready yet)
-try
+// --------------------
+// Migrations / Seed
+// --------------------
+// Don’t run in integration tests, and don’t run if no DB configured
+var connString = builder.Configuration.GetConnectionString("Default");
+var canRunDbBoot = !app.Environment.IsEnvironment("Test") && !string.IsNullOrWhiteSpace(connString);
+
+if (canRunDbBoot)
 {
-    if (!string.IsNullOrWhiteSpace(connectionString))
-    {
-        app.ApplyMigrations();
-        await app.SeedAsync();
-    }
-    else
-    {
-        app.Logger.LogWarning("ConnectionStrings:Default is not set. Skipping migrations/seed.");
-    }
-}
-catch (Exception ex)
-{
-    app.Logger.LogError(ex, "Database migration/seed failed. The app will still run, but DB-backed endpoints will fail until fixed.");
+    app.ApplyMigrations();
+    await app.SeedAsync();
 }
 
 app.Run();
