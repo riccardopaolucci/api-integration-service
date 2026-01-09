@@ -178,6 +178,8 @@ if (canRunDbBoot)
     await app.SeedAsync();
 }
 
+app.MapGet("/", () => Results.Redirect("/swagger"));
+
 app.Run();
 
 public partial class Program { }
