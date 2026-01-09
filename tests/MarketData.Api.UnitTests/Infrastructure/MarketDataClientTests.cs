@@ -1,6 +1,5 @@
 // tests/MarketData.Api.UnitTests/Infrastructure/MarketDataClientTests.cs
 using System.Net;
-using System.Net.Http;
 using System.Text;
 using MarketData.Api.Common.Errors;
 using MarketData.Api.Domain.DTOs.External;
@@ -18,13 +17,14 @@ public class MarketDataClientTests
     [Fact]
     public async Task GetLatestQuoteAsync_ReturnsMappedQuote_OnSuccess()
     {
-        // Arrange
+        // Arrange (Alpha Vantage GLOBAL_QUOTE shape)
         var json = """
         {
-          "symbol": "AAPL",
-          "price": 123.45,
-          "currency": "USD",
-          "timestampUtc": "2025-12-22T00:00:00Z"
+          "Global Quote": {
+            "01. symbol": "AAPL",
+            "05. price": "123.45",
+            "07. latest trading day": "2025-12-22"
+          }
         }
         """;
 
@@ -36,12 +36,12 @@ public class MarketDataClientTests
 
         var httpClient = new HttpClient(handler)
         {
-            BaseAddress = new Uri("https://example.com/api/")
+            BaseAddress = new Uri("https://example.com/")
         };
 
         var options = Options.Create(new ExternalMarketSettings
         {
-            BaseUrl = "https://example.com/api/",
+            BaseUrl = "https://example.com/",
             ApiKey = "demo-or-dev-key",
             TimeoutSeconds = 10
         });
@@ -55,7 +55,7 @@ public class MarketDataClientTests
         Assert.Equal("AAPL", quote.Symbol);
         Assert.Equal(123.45m, quote.Price);
         Assert.Equal("USD", quote.Currency);
-        Assert.Equal(DateTime.Parse("2025-12-22T00:00:00Z").ToUniversalTime(), quote.TimestampUtc);
+        Assert.Equal(new DateTime(2025, 12, 22, 0, 0, 0, DateTimeKind.Utc), quote.TimestampUtc);
     }
 
     [Theory]
@@ -68,12 +68,12 @@ public class MarketDataClientTests
 
         var httpClient = new HttpClient(handler)
         {
-            BaseAddress = new Uri("https://example.com/api/")
+            BaseAddress = new Uri("https://example.com/")
         };
 
         var options = Options.Create(new ExternalMarketSettings
         {
-            BaseUrl = "https://example.com/api/",
+            BaseUrl = "https://example.com/",
             ApiKey = "demo-or-dev-key",
             TimeoutSeconds = 10
         });
@@ -89,37 +89,75 @@ public class MarketDataClientTests
     }
 
     [Theory]
-[InlineData("{ \"symbol\": \"AAPL\" }")] // missing fields
-[InlineData("{ not-json")]              // malformed JSON (still valid C# string)
-public async Task GetLatestQuoteAsync_ThrowsApiException_OnInvalidPayload(string payload)
-{
-    // Arrange
-    var handler = new FakeHttpMessageHandler(_ =>
-        new HttpResponseMessage(HttpStatusCode.OK)
+    [InlineData("{ not-json")] // malformed JSON
+    [InlineData("{ \"Global Quote\": {} }")] // missing required fields
+    [InlineData("{ \"Global Quote\": { \"01. symbol\": \"AAPL\" } }")] // missing price
+    [InlineData("{ \"Global Quote\": { \"01. symbol\": \"AAPL\", \"05. price\": \"0\" } }")] // invalid price
+    [InlineData("{ \"Global Quote\": { \"01. symbol\": \"AAPL\", \"05. price\": \"abc\" } }")] // non-numeric price
+    
+    public async Task GetLatestQuoteAsync_ThrowsApiException_OnInvalidPayload(string payload)
+    {
+        // Arrange
+        var handler = new FakeHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            });
+
+        var httpClient = new HttpClient(handler)
         {
-            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            BaseAddress = new Uri("https://example.com/")
+        };
+
+        var options = Options.Create(new ExternalMarketSettings
+        {
+            BaseUrl = "https://example.com/",
+            ApiKey = "demo-or-dev-key",
+            TimeoutSeconds = 10
         });
 
-    var httpClient = new HttpClient(handler)
+        var sut = new MarketDataClient(httpClient, options, NullLogger<MarketDataClient>.Instance);
+
+        // Act
+        var ex = await Assert.ThrowsAsync<ApiException>(() => sut.GetLatestQuoteAsync("AAPL"));
+
+        // Assert
+        Assert.Equal(ErrorCodes.ExternalServiceFailure, ex.ErrorCode);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, ex.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("{ \"Note\": \"Thank you for using Alpha Vantage! Our standard API call frequency is 5 calls per minute.\" }")]
+    [InlineData("{ \"Information\": \"The **demo** API key is for demo purposes only.\" }")]
+    public async Task GetLatestQuoteAsync_ThrowsApiException_OnProviderNoteOrInformation(string payload)
     {
-        BaseAddress = new Uri("https://example.com/api/")
-    };
+        // Arrange
+        var handler = new FakeHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(payload, Encoding.UTF8, "application/json")
+            });
 
-    var options = Options.Create(new ExternalMarketSettings
-    {
-        BaseUrl = "https://example.com/api/",
-        ApiKey = "demo-or-dev-key",
-        TimeoutSeconds = 10
-    });
+        var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://example.com/")
+        };
 
-    var sut = new MarketDataClient(httpClient, options, NullLogger<MarketDataClient>.Instance);
+        var options = Options.Create(new ExternalMarketSettings
+        {
+            BaseUrl = "https://example.com/",
+            ApiKey = "demo-or-dev-key",
+            TimeoutSeconds = 10
+        });
 
-    // Act
-    var ex = await Assert.ThrowsAsync<ApiException>(() => sut.GetLatestQuoteAsync("AAPL"));
+        var sut = new MarketDataClient(httpClient, options, NullLogger<MarketDataClient>.Instance);
 
-    // Assert
-    Assert.Equal(ErrorCodes.ExternalServiceFailure, ex.ErrorCode);
-    Assert.Equal(StatusCodes.Status503ServiceUnavailable, ex.StatusCode);
+        // Act
+        var ex = await Assert.ThrowsAsync<ApiException>(() => sut.GetLatestQuoteAsync("AAPL"));
+
+        // Assert
+        Assert.Equal(ErrorCodes.ExternalServiceFailure, ex.ErrorCode);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, ex.StatusCode);
     }
 
     private sealed class FakeHttpMessageHandler : HttpMessageHandler
