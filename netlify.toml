@@ -1,7 +1,7 @@
 [build]
   base = "marketdata-frontend"
   command = "npm ci && npm run build"
-  publish = "marketdata-frontend/dist"
+  publish = "dist"
 
 [build.environment]
   NODE_VERSION = "20"
